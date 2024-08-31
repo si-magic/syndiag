@@ -1,0 +1,4 @@
+#pragma once
+#define SYNDIAG_VERSION "@PROJECT_VERSION@"
+#define SYNDIAG_PORT 9967
+#define SYNDIAG_PORT_STR "9967"

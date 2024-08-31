@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+command="@CMAKE_INSTALL_PREFIX@/bin/syndiagd"
+command_args="-P /run/${RC_SVCNAME}.pid"
+command_args_background="-D"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+	after net
+}

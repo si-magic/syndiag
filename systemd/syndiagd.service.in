@@ -1,0 +1,12 @@
+[Unit]
+Description=TCP SYN diagnostics daemon
+After=network.target
+
+[Service]
+Type=forking
+Environment="SYNDIAGD_OPTS=-D -P /run/syndiagd.pid"
+EnvironmentFile=-/etc/syndiag
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/syndiagd $SYNDIAGD_OPTS
+
+[Install]
+WantedBy=multi-user.target
