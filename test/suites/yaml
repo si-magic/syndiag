@@ -1,0 +1,15 @@
+#!/sh
+setup () {
+	"$SYNDIAGD_EXEC" -P syndiagd.pid -h "$SYNDIAG_HOST" -p "$SYNDIAG_PORT"
+}
+
+run () {
+	echo "yq should be able to parse syndiag's stdout."
+	"$SYNDIAG_EXEC" "$SYNDIAG_HOST" "$SYNDIAG_PORT" | yq '.' -
+}
+
+cleanup () {
+	local pid=$(cat syndiagd.pid)
+	kill -TERM $pid
+	wait $pid
+}

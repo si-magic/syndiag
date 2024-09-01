@@ -47,5 +47,5 @@ install(
 	FILES ${CMAKE_BINARY_DIR}/systemd/syndiagd.service
 	DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/systemd/system)
 install(
-	FILES ${CMAKE_BINARY_DIR}/openrc/syndiagd.service
+	FILES ${CMAKE_BINARY_DIR}/openrc/syndiagd
 	DESTINATION /etc/init.d)
