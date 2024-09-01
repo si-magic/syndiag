@@ -36,6 +36,7 @@ static struct {
 	const char *pid_file;
 	char hostname[256];
 	unsigned int timeout;
+	int sck_buf_size;
 	union {
 		struct sockaddr sa;
 		struct sockaddr_in v4;
@@ -64,7 +65,8 @@ static int print_help (FILE *out, const char *argv0) {
 "  -m MAX_CONN   max number of connections (default: %zu)\n" \
 "  -D            daemonize\n"\
 "  -P PID_FILE   maintain a PID file\n" \
-"  -H HOSTNAME   specify hostname (default: %s)\n"
+"  -H HOSTNAME   specify hostname (default: %s)\n"\
+"  -S SO_SNDBUF  specify socket send buffer size\n"
 
 	return fprintf(
 		out,
@@ -353,8 +355,6 @@ static void handle_parent_alarm (const int sn) {
 static int mk_main_socket (void) {
 	int ret = -1;
 	int fd;
-	int ov;
-	socklen_t sl;
 
 	fd = socket(param.listen.sa.sa_family, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0) {
@@ -362,9 +362,19 @@ static int mk_main_socket (void) {
 		goto END;
 	}
 
-	sl = sizeof(ov);
-	ov = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &ov, sl);
+	setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1);
+	if (param.sck_buf_size > 0) {
+		const bool fr =
+#if HAVE_SO_RCVBUFFORCE
+			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUFFORCE, param.sck_buf_size) ||
+				setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
+#else
+			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
+#endif
+		if (!fr) {
+			perror("setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, ...)");
+		}
+	}
 
 	if (bind(fd, &param.listen.sa, sizeof(param.listen)) < 0) {
 		perror("bind()");
@@ -418,7 +428,7 @@ static bool parse_argv (const int argc, const char **argv) {
 	uint16_t port = 0;
 
 	do {
-		c = getopt(argc, (char*const*)argv, "hVl:p:m:DP:H:");
+		c = getopt(argc, (char*const*)argv, "hVl:p:m:DP:H:S:");
 
 		switch (c) {
 		case -1: break;
@@ -458,6 +468,13 @@ static bool parse_argv (const int argc, const char **argv) {
 			break;
 		case 'H':
 			strncpy(param.hostname, optarg, sizeof(param.hostname));
+			break;
+		case 'S':
+			if (sscanf(optarg, "%d", &param.sck_buf_size) != 1 ||
+					param.sck_buf_size < 0)
+			{
+				RETURN_ERROR_OPT("-S");
+			}
 			break;
 		default: abort();
 		}
