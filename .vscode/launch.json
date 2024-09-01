@@ -59,6 +59,31 @@
 				}
 			],
 			"preLaunchTask": "CMake: build"
+		},
+		{
+			"name": "Launch util-func-tests",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/util-func-tests",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}/build",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "gdb",
+			"setupCommands": [
+				{
+					"description": "Enable pretty-printing for gdb",
+					"text": "-enable-pretty-printing",
+					"ignoreFailures": true
+				},
+				{
+					"description": "Set Disassembly Flavor to Intel",
+					"text": "-gdb-set disassembly-flavor intel",
+					"ignoreFailures": true
+				}
+			],
+			"preLaunchTask": "CMake: build"
 		}
 	]
 }

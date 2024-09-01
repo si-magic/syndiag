@@ -1,15 +1,17 @@
 #!/sh
+. functions
+
 setup () {
-	"$SYNDIAGD_EXEC" -P syndiagd.pid -h "$SYNDIAG_HOST" -p "$SYNDIAG_PORT"
+	start_daemon
 }
 
 run () {
 	echo "yq should be able to parse syndiag's stdout."
 	"$SYNDIAG_EXEC" "$SYNDIAG_HOST" "$SYNDIAG_PORT" | yq '.' -
+
+	gracefully_stop_daemon
 }
 
 cleanup () {
-	local pid=$(cat syndiagd.pid)
-	kill -TERM $pid
-	wait $pid
+	forcefully_stop_daemon
 }

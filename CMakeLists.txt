@@ -36,15 +36,20 @@ if (NOT HAVE_TCP_REPAIR_WINDOW)
 	message(FATAL_ERROR "no TCP_REPAIR_WINDOW in <netinet/tcp.h>")
 endif()
 
+# Stupid CMake won't let me have a lib named "syndiag" and an exec named
+# "syndiag" at the same time
 add_library(libsyndiag STATIC src/util.c)
 
 add_executable(syndiag src/syndiag.c)
 add_executable(syndiagd src/syndiagd.c)
+add_executable(util-func-tests test/suites/util-func-tests.c)
+include_directories(src)
 target_include_directories(syndiag PRIVATE ${CMAKE_BINARY_DIR})
 target_include_directories(syndiagd PRIVATE ${CMAKE_BINARY_DIR})
 target_include_directories(libsyndiag PRIVATE ${CMAKE_BINARY_DIR})
 target_link_libraries(syndiag PRIVATE libsyndiag)
 target_link_libraries(syndiagd PRIVATE libsyndiag)
+target_link_libraries(util-func-tests PRIVATE libsyndiag)
 
 install(TARGETS syndiag syndiagd)
 install(

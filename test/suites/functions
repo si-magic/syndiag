@@ -1,0 +1,23 @@
+start_daemon () {
+	"$SYNDIAGD_EXEC" -P syndiagd.pid -h "$SYNDIAG_HOST" -p "$SYNDIAG_PORT"
+}
+
+gracefully_stop_daemon () {
+	local pid=$(cat syndiagd.pid)
+
+	if kill -0 $pid
+	then
+		kill -TERM $pid
+		wait -nf $pid || true
+	fi
+}
+
+forcefully_stop_daemon () {
+	local pid=$(cat syndiagd.pid)
+
+	if kill -0 $pid
+	then
+		kill -KILL $pid
+		wait -nf $pid || true
+	fi
+}

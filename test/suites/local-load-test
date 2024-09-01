@@ -1,0 +1,34 @@
+. functions
+
+setup () {
+	start_daemon
+	truncate -s 0 ncat.pid
+}
+
+run () {
+	echo "Launching 5000 ncat processes"
+	for (( i = 0; i < 5000; i += 1 ))
+	do
+		ncat "$SYNDIAG_HOST" "$SYNDIAG_PORT" < /dev/null > /dev/null 2> /dev/null &
+		echo "$!" >> ncat.pid
+	done
+
+	gracefully_stop_daemon
+}
+
+cleanup () {
+	forcefully_stop_daemon
+
+	cat ncat.pid | while read pid
+	do
+		if kill -0 "$pid"
+		then
+			kill -KILL "$pid"
+		fi
+	done
+
+	while wait -n
+	do
+		:
+	done
+}

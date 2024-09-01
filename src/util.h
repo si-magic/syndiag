@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netinet/tcp.h>
 
 #define CHK_CLOSE(x) if ((x) >= 0) { close((x)); }
