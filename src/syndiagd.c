@@ -24,7 +24,6 @@
 
 static struct {
 	struct {
-		pid_t *children;
 		size_t nb_conns;
 	} pool;
 	// don't let the CC put this in register because the fd is closed in the
@@ -88,59 +87,10 @@ static void init_param_defaults (void) {
 
 static void init_global (void) {
 	server.fd = -1;
-
-	server.pool.children = malloc(sizeof(pid_t) * param.max_con);
-	if (server.pool.children == NULL) {
-		perror("Failed to reserve memory");
-		abort();
-	}
 }
 
 static void deinit_global (void) {
-	free(server.pool.children);
-}
-
-static int pid_comp_f (const void *in_a, const void *in_b) {
-	const pid_t a = *((pid_t*)in_a);
-	const pid_t b = *((pid_t*)in_b);
-
-	return
-		a < b ? 1 :
-		a > b ? -1 :
-		0;
-}
-
-static void add_child (const pid_t pid) {
-	server.pool.children[server.pool.nb_conns] = pid;
-	server.pool.nb_conns += 1;
-	qsort(server.pool.children, server.pool.nb_conns, sizeof(pid_t), pid_comp_f);
-}
-
-static void remove_child (const pid_t pid) {
-	void *found = bsearch(
-		&pid,
-		server.pool.children,
-		server.pool.nb_conns,
-		sizeof(pid_t),
-		pid_comp_f);
-
-	if (found == NULL) {
-		return;
-	}
-
-	server.pool.nb_conns -= 1;
-	memmove(
-		found,
-		(pid_t*)found + 1,
-		server.pool.nb_conns - ((pid_t*)found - (pid_t*)server.pool.children));
-
-	if (false) {
-		fprintf(
-			stderr,
-			"element at %zu removed in %s()\n",
-			(size_t)((pid_t*)found - server.pool.children),
-			__func__);
-	}
+	// nothing to do
 }
 
 static int child_main (const int fd, const struct sockaddr *in_addr) {
@@ -269,7 +219,7 @@ static void reap_children (const bool hang) {
 	while (true) {
 		c = waitpid(0, NULL, hang ? 0 : WNOHANG);
 		if (c > 0) {
-			remove_child(c);
+			server.pool.nb_conns -= 1;
 		}
 		else {
 			break;
@@ -279,14 +229,23 @@ static void reap_children (const bool hang) {
 	errno = saved_errno;
 }
 
-static void report_new_conn (const int fd, const struct sockaddr *in_addr) {
+static void report_new_conn (
+		const int fd,
+		const struct sockaddr *in_addr,
+		const char *msg)
+{
 	char ep_str[INET_EP_ADDRSTRLEN];
 
 	if (inet_ep_ntop(in_addr, ep_str, sizeof(ep_str)) == NULL) {
 		abort();
 	}
 
-	printf("New conn from %s\n", ep_str);
+	if (msg != NULL && msg[0] != 0) {
+		printf("New conn from %s: %s\n", ep_str, msg);
+	}
+	else {
+		printf("New conn from %s\n", ep_str);
+	}
 }
 
 static void report_ready (void) {
@@ -348,17 +307,25 @@ static int do_serve (void) {
 			continue;
 		}
 
-		report_new_conn(new_fd, (struct sockaddr*)&addr);
+		if (server.pool.nb_conns < param.max_con) {
+			report_new_conn(new_fd, (struct sockaddr*)&addr, NULL);
 
-		child = fork();
-		if (child > 0) {
-			add_child(child);
-		}
-		else if (child == 0) {
-			return child_main(new_fd, (struct sockaddr*)&addr);
+			child = fork();
+			if (child > 0) {
+				server.pool.nb_conns += 1;
+			}
+			else if (child == 0) {
+				return child_main(new_fd, (struct sockaddr*)&addr);
+			}
+			else {
+				perror("fork()");
+			}
 		}
 		else {
-			perror("fork()");
+			report_new_conn(
+				new_fd,
+				(struct sockaddr*)&addr,
+				"dropping due to max connections reached");
 		}
 
 		close(new_fd);
@@ -482,7 +449,7 @@ static bool parse_argv (const int argc, const char **argv) {
 			}
 			break;
 		case 'm':
-			if (sscanf(optarg, "%zu", &param.max_con) != 1) {
+			if (sscanf(optarg, "%zu", &param.max_con) != 1 || param.max_con == 0) {
 				RETURN_ERROR_OPT("-m");
 			}
 			break;

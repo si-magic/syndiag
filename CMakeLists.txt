@@ -19,7 +19,11 @@ configure_file(
 	src/config.h.in
 	${CMAKE_BINARY_DIR}/config.h)
 
-add_compile_options(-Wall -Wextra -Wno-unused-parameter)
+add_compile_options(
+	-Wall
+	-Wextra
+	-Wno-unused-parameter
+	-Werror=implicit-function-declaration)
 add_compile_definitions(_DEFAULT_SOURCE)
 
 # check Linux-specific features
