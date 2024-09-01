@@ -4,9 +4,9 @@ After=network.target
 
 [Service]
 Type=forking
-Environment="SYNDIAGD_OPTS=-D -P /run/syndiagd.pid"
-EnvironmentFile=-/etc/syndiag
-ExecStart=@CMAKE_INSTALL_PREFIX@/bin/syndiagd $SYNDIAGD_OPTS
+Environment="SYNDIAGD_OPTS=-D -P /run/syndiagd.pid" SYNDIAGD_OPTS_EXTRA=
+EnvironmentFile=-/etc/syndiag/syndiagd.conf
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/syndiagd $SYNDIAGD_OPTS $SYNDIAGD_OPTS_EXTRA
 
 [Install]
 WantedBy=multi-user.target
