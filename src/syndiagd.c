@@ -66,7 +66,8 @@ static int print_help (FILE *out, const char *argv0) {
 "  -D            daemonize\n"\
 "  -P PID_FILE   maintain a PID file\n" \
 "  -H HOSTNAME   specify hostname (default: %s)\n"\
-"  -S SO_SNDBUF  specify socket send buffer size\n"
+"  -S SO_SNDBUF  specify socket send buffer size\n"\
+"                (NOT recommended. Use sysctl instead)\n"
 
 	return fprintf(
 		out,
@@ -113,6 +114,7 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 
 	// the child wants to die when the connection times out
 	signal(SIGALRM, SIG_DFL);
+	alarm(param.timeout);
 
 	switch (in_addr->sa_family) {
 	case AF_INET:
@@ -124,6 +126,30 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		break;
 	default: abort();
 	}
+
+	// socket options
+	// it's better to use sysctl because this will add to the time it takes for
+	// the kernel to notify the updated window size.
+	if (param.sck_buf_size > 0) {
+		const bool fr =
+#if HAVE_SO_RCVBUFFORCE
+			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUFFORCE, param.sck_buf_size) ||
+					setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
+#else
+			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
+#endif
+		if (!fr) {
+			perror("setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, ...)");
+		}
+	}
+
+	// cue the client
+	send(fd, &cue, 1, MSG_OOB);
+
+	// wait for the client's cue
+	read(fd, &cue, sizeof(cue));
+
+	// now, hopefully, the TRW state is up to date!
 
 	if (!get_tcp_info(fd, &ti, NULL)) {
 		perror("get_tcp_info()");
@@ -200,10 +226,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		goto END;
 	}
 
-	alarm(param.timeout);
-
-	// wait for the client's cue
-	read(fd, &cue, sizeof(cue));
 	shutdown(fd, SHUT_RD);
 	rwr = write(fd, snd_buf, (size_t)fr);
 	shutdown(fd, SHUT_WR);
@@ -363,18 +385,6 @@ static int mk_main_socket (void) {
 	}
 
 	setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1);
-	if (param.sck_buf_size > 0) {
-		const bool fr =
-#if HAVE_SO_RCVBUFFORCE
-			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUFFORCE, param.sck_buf_size) ||
-				setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
-#else
-			setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, param.sck_buf_size);
-#endif
-		if (!fr) {
-			perror("setsockopt_int(fd, SOL_SOCKET, SO_RCVBUF, ...)");
-		}
-	}
 
 	if (bind(fd, &param.listen.sa, sizeof(param.listen)) < 0) {
 		perror("bind()");

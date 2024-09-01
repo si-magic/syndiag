@@ -218,7 +218,7 @@ static int do_eyeball (struct addrinfo *ai) {
 		}
 
 		pfd[0].revents = pfd[1].revents = 0;
-		fr = poll(pfd, 2, 5000);
+		fr = poll(pfd, 2, 10000);
 		if (fr == 0) {
 			errno = ETIMEDOUT;
 		}
@@ -247,6 +247,7 @@ static int do_eyeball (struct addrinfo *ai) {
 				cand[i]->ai_addrlen);
 			sl = sizeof(client.local_addr);
 			getsockname(ret, &client.local_addr.sa, &sl);
+			setnonblock(ret, false);
 			goto END;
 		}
 	}
@@ -285,9 +286,6 @@ static int mk_main_socket (void) {
 		perror(ARGV0);
 		goto END;
 	}
-	else {
-		setnonblock(ret, false);
-	}
 	report_connected_host();
 
 END:
@@ -323,6 +321,21 @@ static void print_preemble (void) {
 		ep_local_str,
 		fl
 	);
+}
+
+static void do_cues (void) {
+	struct pollfd pfd = { 0, };
+	uint8_t cue;
+
+	// wait for server's cue
+	pfd.fd = client.fd;
+	pfd.events = POLLPRI;
+	poll(&pfd, 1, -1);
+	// flush the oob data so that it won't end up in the regular data
+	recv(client.fd, &cue, 1, MSG_OOB);
+
+	// this is no good - making sure the states are definitely updated.
+	usleep(50000);
 }
 
 static int print_local_diag (void) {
@@ -424,8 +437,9 @@ static int print_remote_diag (void) {
 	char rcv_buf[4096];
 	ssize_t iofr;
 
-	// Cue the server
+	// cue the server
 	shutdown(client.fd, SHUT_WR);
+
 	iofr = read(client.fd, rcv_buf, sizeof(rcv_buf) - 1);
 	if (iofr < 0) {
 		goto END;
@@ -475,12 +489,15 @@ int main (const int argc, const char **argv) {
 
 	init_global();
 
+	alarm(60); // 1 minute run time limit
+
 	client.fd = mk_main_socket();
 	if (client.fd < 0) {
 		goto END;
 	}
 
 	print_preemble();
+	do_cues();
 	ec = print_local_diag();
 	if (ec != 0) {
 		perror(ARGV0);
