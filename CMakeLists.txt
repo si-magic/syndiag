@@ -22,9 +22,14 @@ configure_file(
 add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 add_compile_definitions(_DEFAULT_SOURCE)
 
+# check Linux-specific features
 CHECK_SYMBOL_EXISTS(SOL_TCP "netinet/tcp.h" HAVE_SOL_TCP)
-if (NOT ${SOL_TCP})
+CHECK_SYMBOL_EXISTS(TCP_REPAIR_WINDOW "netinet/tcp.h" HAVE_TCP_REPAIR_WINDOW)
+if (NOT HAVE_SOL_TCP)
 	message(FATAL_ERROR "no SOL_TCP in <netinet/tcp.h>")
+endif()
+if (NOT HAVE_TCP_REPAIR_WINDOW)
+	message(FATAL_ERROR "no TCP_REPAIR_WINDOW in <netinet/tcp.h>")
 endif()
 
 add_library(libsyndiag STATIC src/util.c)

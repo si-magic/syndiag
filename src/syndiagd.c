@@ -35,7 +35,7 @@ static struct {
 static struct {
 	size_t max_con;
 	const char *pid_file;
-	const char hostname[256];
+	char hostname[256];
 	unsigned int timeout;
 	union {
 		struct sockaddr sa;
@@ -133,6 +133,14 @@ static void remove_child (const pid_t pid) {
 		found,
 		(pid_t*)found + 1,
 		server.pool.nb_conns - ((pid_t*)found - (pid_t*)server.pool.children));
+
+	if (false) {
+		fprintf(
+			stderr,
+			"element at %zu removed in %s()\n",
+			(size_t)((pid_t*)found - server.pool.children),
+			__func__);
+	}
 }
 
 static int child_main (const int fd, const struct sockaddr *in_addr) {
@@ -156,11 +164,9 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 
 	switch (in_addr->sa_family) {
 	case AF_INET:
-		// addr.addr = &((struct sockaddr_in*)in_addr)->sin_addr;
 		addr.port = ntohs(((struct sockaddr_in*)in_addr)->sin_port);
 		break;
 	case AF_INET6:
-		// addr.addr = &((struct sockaddr_in6*)in_addr)->sin6_addr;
 		addr.port = ntohs(((struct sockaddr_in6*)in_addr)->sin6_port);
 		addr.fl = ntohl(((struct sockaddr_in6*)in_addr)->sin6_flowinfo);
 		break;
@@ -200,9 +206,9 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 
 	// bit of static memory safety checks
 	_Static_assert(sizeof(
-		"SYNDIAG:           v255.255.255.255 REV 0\r\n"
-		"host:              012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012\r\n"
-		"address:           0000:0000:0000:0000:0000:0000:0000:0000\r\n"
+		"SYNDIAG:           'v255.255.255.255 REV 0'\r\n"
+		"host:              '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
+		"address:           '0000:0000:0000:0000:0000:0000:0000:0000'\r\n"
 		"port:              65535\r\n"
 		"flow label:        1048575\r\n"
 		"trw.snd_wnd:       4294967295\r\n"
@@ -213,9 +219,9 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"ti.tcpi_rcv_space: 4294967295\r\n"
 	) - 1 <= sizeof(snd_buf));
 	fr = snprintf(snd_buf, sizeof(snd_buf),
-		"SYNDIAG:           v%s REV 0\r\n"
-		"host:              %s\r\n"
-		"address:           %s\r\n"
+		"SYNDIAG:           'v%s REV 0'\r\n"
+		"host:              '%s'\r\n"
+		"address:           '%s'\r\n"
 		"port:              %"PRIu16"\r\n"
 		"flow label:        %"PRIu32"\r\n"
 		"trw.snd_wnd:       %"PRIu32"\r\n"
@@ -280,7 +286,7 @@ static void report_new_conn (const int fd, const struct sockaddr *in_addr) {
 		abort();
 	}
 
-	printf("New conn %d from %s\n", fd, ep_str);
+	printf("New conn from %s\n", ep_str);
 }
 
 static void report_ready (void) {

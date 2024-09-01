@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -217,4 +218,18 @@ bool setnonblock (const int fd, const bool onoff) {
 	ret = fcntl(fd, F_SETFL, ret);
 
 	return ret == 0;
+}
+
+unsigned int read_urand (void) {
+	const int fd = open("/dev/urandom", O_RDONLY);
+	unsigned int ret = 0;
+
+	if (fd < 0) {
+		return ret;
+	}
+
+	read(fd, &ret, sizeof(ret));
+	close(fd);
+
+	return ret;
 }

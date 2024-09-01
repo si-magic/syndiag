@@ -9,7 +9,7 @@
 			"type": "cppdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}/build/syndiag",
-			"args": [ "localhost" ],
+			"args": [],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build",
 			"environment": [],

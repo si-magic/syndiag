@@ -39,3 +39,4 @@ bool test_tcp_repair_window (const int fd, FILE *f, const char *tag_in);
 char *inet_ep_ntop (const struct sockaddr *in_addr, void *out, const size_t size);
 int print_version (FILE *out);
 bool setnonblock (const int fd, const bool onoff);
+unsigned int read_urand (void);

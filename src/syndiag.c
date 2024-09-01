@@ -103,6 +103,7 @@ static bool parse_argv (const int argc, const char **argv) {
 	}
 	else if (!(param.opts.version || param.opts.help)) {
 		fprintf(stderr, ARGV0": too few arguments. Use -h option for usage\n");
+		return false;
 	}
 	optind += 1;
 
@@ -206,6 +207,16 @@ static int do_eyeball (struct addrinfo *ai) {
 			}
 		}
 
+		// take 5 so that both connectivities can have a fair race
+		if (true) {
+			usleep(5000);
+		}
+		else {
+			// jiffy for stress testing
+			const unsigned int rnd = (int)read_urand() % 2500;
+			usleep((useconds_t)(5000 + rnd));
+		}
+
 		pfd[0].revents = pfd[1].revents = 0;
 		fr = poll(pfd, 2, 5000);
 		if (fr == 0) {
@@ -217,8 +228,8 @@ static int do_eyeball (struct addrinfo *ai) {
 			}
 			fr = 0;
 			sl = sizeof(fr);
-			if (pfd[i].revents &&
-					getsockopt(pfd[i].fd, SOL_SOCKET, SO_ERROR, &fr, &sl) != 0 ||
+			if ((pfd[i].revents &&
+					getsockopt(pfd[i].fd, SOL_SOCKET, SO_ERROR, &fr, &sl) != 0) ||
 					fr != 0)
 			{
 				cand[i]->ai_family = -1;
@@ -264,7 +275,11 @@ static int mk_main_socket (void) {
 		goto END;
 	}
 
-	fprintf(stderr, "connecting to: %s\n", param.target.host);
+	fprintf(
+		stderr,
+		"connecting to: %s %s\n",
+		param.target.host,
+		param.target.service);
 	ret = do_eyeball(ai);
 	if (ret < 0) {
 		perror(ARGV0);
@@ -286,7 +301,7 @@ static void print_preemble (void) {
 	uint32_t fl;
 
 	if (client.remote_addr.sa.sa_family == AF_INET6) {
-		fl = client.remote_addr.v6.sin6_family;
+		fl = ntohl(client.remote_addr.v6.sin6_flowinfo);
 	}
 	else {
 		fl = 0;
@@ -294,15 +309,23 @@ static void print_preemble (void) {
 	inet_ep_ntop(&client.remote_addr.sa, ep_remote_str, sizeof(ep_remote_str));
 	inet_ep_ntop(&client.local_addr.sa, ep_local_str, sizeof(ep_local_str));
 
-	printf("syndiag report:\n");
-	printf("  rev:        0\n");
-	printf("  version:    "SYNDIAG_VERSION"\n");
-	printf("  remote:     %s\n", ep_remote_str);
-	printf("  local:      %s\n", ep_local_str);
-	printf("  flow label: %"PRIu32"\n", fl);
+	printf(
+		"---\n"
+		"syndiag report:\n"
+		"  rev:        0\n"
+		"  version:    '"SYNDIAG_VERSION"'\n"
+		"  endpoint:\n"
+		"    remote:     '%s'\n"
+		"    local:      '%s'\n"
+		"    flow label: %"PRIu32"\n"
+		,
+		ep_remote_str,
+		ep_local_str,
+		fl
+	);
 }
 
-static int print_our_diag (void) {
+static int print_local_diag (void) {
 	int ret = -1;
 	struct tcp_info ti = { 0, };
 	struct tcp_repair_window trw = { 0, };
@@ -323,7 +346,7 @@ static int print_our_diag (void) {
 	}
 
 	if (client.local_addr.sa.sa_family == AF_INET6) {
-		addr.fl = client.local_addr.v6.sin6_family;
+		addr.fl = ntohl(client.local_addr.v6.sin6_flowinfo);
 		addr.port = ntohs(client.local_addr.v6.sin6_port);
 	}
 	else {
@@ -333,8 +356,8 @@ static int print_our_diag (void) {
 	our_inet_ntop(&client.local_addr.sa, addr.addr_str, sizeof(addr.addr_str));
 
 	printf(
-		"  ours:\n"
-		"    address:           %s\n"
+		"  local:\n"
+		"    address:           '%s'\n"
 		"    port:              %"PRIu16"\n"
 		"    flow label:        %"PRIu32"\n"
 		"    trw.snd_wnd:       %"PRIu32"\n"
@@ -389,14 +412,14 @@ static void foreach_delim (char *s, const char *delim, void(*f)(const char *)) {
 	}
 }
 
-static void parse_daemon_line (const char *line) {
+static void parse_remote_line (const char *line) {
 	if (line[0] == 0) {
 		return;
 	}
 	printf("    %s\n", line);
 }
 
-static int print_their_diag (void) {
+static int print_remote_diag (void) {
 	int ret = 1;
 	char rcv_buf[4096];
 	ssize_t iofr;
@@ -407,16 +430,19 @@ static int print_their_diag (void) {
 	if (iofr < 0) {
 		goto END;
 	}
-	shutdown(client.fd, SHUT_RD);
+	else if (iofr == 0) {
+		errno = ENODATA;
+		goto END;
+	}
 	rcv_buf[iofr] = 0;
-
 	if (strstr(rcv_buf, "SYNDIAG:") != rcv_buf || !is_writable_str(rcv_buf)) {
 		errno = EPROTO;
 		goto END;
 	}
+	shutdown(client.fd, SHUT_RD);
 
-	printf("  theirs:\n");
-	foreach_delim(rcv_buf, "\r\n", parse_daemon_line);
+	printf("  remote:\n");
+	foreach_delim(rcv_buf, "\r\n", parse_remote_line);
 
 	ret = 0;
 
@@ -455,12 +481,12 @@ int main (const int argc, const char **argv) {
 	}
 
 	print_preemble();
-	ec = print_our_diag();
+	ec = print_local_diag();
 	if (ec != 0) {
 		perror(ARGV0);
 	}
 
-	ec = print_their_diag();
+	ec = print_remote_diag();
 	if (ec != 0) {
 		perror(ARGV0);
 	}
