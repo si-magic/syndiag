@@ -452,6 +452,7 @@ static bool parse_argv (const int argc, const char **argv) {
 			}
 			break;
 		case 'l':
+			// TODO: use getaddrinfo() to support scope_id spec for link-local addresses?
 			if (strlen(optarg) == 0) {
 				// an empty address is treated as ANY by many platforms
 				break;

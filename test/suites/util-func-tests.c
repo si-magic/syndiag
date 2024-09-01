@@ -25,7 +25,7 @@ int main (void) {
 		0xff, 0xff, 0xff, 0xff
 	};
 	static const char END_OF_WORLD_STR[] =
-		"[ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff]:65535";
+		"[ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%4294967295]:65535";
 	_Static_assert(sizeof(END_OF_WORLD_STR) <= sizeof(buf));
 	_Static_assert(sizeof(MAPPED_V4) == 16);
 	_Static_assert(sizeof(END_OF_WORLD) == 16);
@@ -39,11 +39,12 @@ int main (void) {
 	assert(strcmp(ntop_ret, "255.255.255.255") == 0);
 
 	// inet_ep_ntop short buffer edge cases
-	// one: tight buffer
 	memset(&addr, 0, sizeof(addr));
 	addr.v6.sin6_family = AF_INET6;
 	memcpy(&addr.v6.sin6_addr, END_OF_WORLD, sizeof(END_OF_WORLD));
 	addr.v6.sin6_port = 65535; // same in both big-endian and little-endian!
+	addr.v6.sin6_scope_id = 4294967295;
+	// one: tight buffer
 	ntop_ret = inet_ep_ntop(&addr.sa, buf, sizeof(END_OF_WORLD_STR));
 	assert(ntop_ret == buf);
 	assert(strcmp(ntop_ret, END_OF_WORLD_STR) == 0);

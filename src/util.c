@@ -175,7 +175,24 @@ char *inet_ep_ntop (
 
 	if (in_addr->sa_family == AF_INET6) {
 		const struct sockaddr_in6 *addr = (const struct sockaddr_in6*)in_addr;
-		cnt = snprintf(out, size, "[%s]:%"PRIu16, addr_str, ntohs(addr->sin6_port));
+
+		if (addr->sin6_scope_id != 0) {
+			cnt = snprintf(
+				out,
+				size,
+				"[%s%%%"PRIu32"]:%"PRIu16,
+				addr_str,
+				addr->sin6_scope_id,
+				ntohs(addr->sin6_port));
+		}
+		else {
+			cnt = snprintf(
+				out,
+				size,
+				"[%s]:%"PRIu16,
+				addr_str,
+				ntohs(addr->sin6_port));
+		}
 	}
 	else if (in_addr->sa_family == AF_INET) {
 		const struct sockaddr_in *addr = (const struct sockaddr_in*)in_addr;
