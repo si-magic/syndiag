@@ -296,14 +296,7 @@ END:
 static void print_preemble (void) {
 	char ep_remote_str[INET_EP_ADDRSTRLEN] = { 0, };
 	char ep_local_str[INET_EP_ADDRSTRLEN] = { 0, };
-	uint32_t fl;
 
-	if (client.remote_addr.sa.sa_family == AF_INET6) {
-		fl = ntohl(client.remote_addr.v6.sin6_flowinfo);
-	}
-	else {
-		fl = 0;
-	}
 	inet_ep_ntop(&client.remote_addr.sa, ep_remote_str, sizeof(ep_remote_str));
 	inet_ep_ntop(&client.local_addr.sa, ep_local_str, sizeof(ep_local_str));
 
@@ -315,11 +308,9 @@ static void print_preemble (void) {
 		"  endpoint:\n"
 		"    remote:     '%s'\n"
 		"    local:      '%s'\n"
-		"    flow label: %"PRIu32"\n"
 		,
 		ep_remote_str,
-		ep_local_str,
-		fl
+		ep_local_str
 	);
 }
 
@@ -343,7 +334,6 @@ static int print_local_diag (void) {
 	struct tcp_info ti = { 0, };
 	struct tcp_repair_window trw = { 0, };
 	struct {
-		uint32_t fl;
 		char addr_str[INET6_ADDRSTRLEN];
 		uint16_t port;
 	} addr = { 0, };
@@ -359,11 +349,9 @@ static int print_local_diag (void) {
 	}
 
 	if (client.local_addr.sa.sa_family == AF_INET6) {
-		addr.fl = ntohl(client.local_addr.v6.sin6_flowinfo);
 		addr.port = ntohs(client.local_addr.v6.sin6_port);
 	}
 	else {
-		addr.fl = 0;
 		addr.port = ntohs(client.local_addr.v4.sin_port);
 	}
 	our_inet_ntop(&client.local_addr.sa, addr.addr_str, sizeof(addr.addr_str));
@@ -372,7 +360,6 @@ static int print_local_diag (void) {
 		"  local:\n"
 		"    address:           '%s'\n"
 		"    port:              %"PRIu16"\n"
-		"    flow label:        %"PRIu32"\n"
 		"    trw.snd_wnd:       %"PRIu32"\n"
 		"    trw.rcv_wnd:       %"PRIu32"\n"
 		"    ti.tcpi_snd_mss:   %"PRIu32"\n"
@@ -382,7 +369,6 @@ static int print_local_diag (void) {
 		,
 		addr.addr_str,
 		addr.port,
-		addr.fl,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,

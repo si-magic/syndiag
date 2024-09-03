@@ -56,7 +56,7 @@ static int print_help (FILE *out, const char *argv0) {
 #define HELP_STR \
 "TCP SYN diagnostics daemon\n" \
 "Usage: %s [-hVD] [-l BIND_ADDR] [-p PORT] [-m MAX_CONN] [-P PID_FILE]\n" \
-"          [-H hostname]\n" \
+"          [-H hostname] [-S SO_SNDBUF]\n" \
 "Options:\n" \
 "  -h            print this message and exit\n" \
 "  -V            print version and exit\n" \
@@ -67,7 +67,7 @@ static int print_help (FILE *out, const char *argv0) {
 "  -P PID_FILE   maintain a PID file\n" \
 "  -H HOSTNAME   specify hostname (default: %s)\n"\
 "  -S SO_SNDBUF  specify socket send buffer size\n"\
-"                (NOT recommended. Use sysctl instead)\n"
+"                (you probably want to set this on top of sysctl)\n"
 
 	return fprintf(
 		out,
@@ -100,7 +100,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	// tcp_info: mss, window
 	// tcp_repair_window: window
 	struct {
-		uint32_t fl;
 		char addr_str[INET6_ADDRSTRLEN];
 		uint16_t port;
 	} addr = { 0, };
@@ -122,7 +121,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		break;
 	case AF_INET6:
 		addr.port = ntohs(((struct sockaddr_in6*)in_addr)->sin6_port);
-		addr.fl = ntohl(((struct sockaddr_in6*)in_addr)->sin6_flowinfo);
 		break;
 	default: abort();
 	}
@@ -188,7 +186,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"host:              '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
 		"address:           '0000:0000:0000:0000:0000:0000:0000:0000'\r\n"
 		"port:              65535\r\n"
-		"flow label:        1048575\r\n"
 		"trw.snd_wnd:       4294967295\r\n"
 		"trw.rcv_wnd:       4294967295\r\n"
 		"ti.tcpi_snd_mss:   4294967295\r\n"
@@ -201,7 +198,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"host:              '%s'\r\n"
 		"address:           '%s'\r\n"
 		"port:              %"PRIu16"\r\n"
-		"flow label:        %"PRIu32"\r\n"
 		"trw.snd_wnd:       %"PRIu32"\r\n"
 		"trw.rcv_wnd:       %"PRIu32"\r\n"
 		"ti.tcpi_snd_mss:   %"PRIu32"\r\n"
@@ -213,7 +209,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		param.hostname,
 		addr.addr_str,
 		addr.port,
-		addr.fl,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,
