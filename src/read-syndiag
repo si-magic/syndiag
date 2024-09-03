@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+import ipaddress
+import os
+import sys
+import yaml
+
+def get_addr_ipv (addr: str) -> int:
+	return ipaddress.ip_address(addr).version
+
+doc = yaml.full_load(sys.stdin)
+if not doc:
+	sys.stderr.write("No data input." + os.linesep)
+	exit(2)
+root = doc['syndiag report']
+local = root['local']
+remote = root['remote']
+
+START_WIN_SIZE = 65536
+
+if False: # machine readable output... was just an idea
+	result = {
+		"d_addr": local['address'] != remote['address'],
+		"d_port": local['port'] != remote['port'],
+		"ipv": {
+			"local": get_addr_ipv(local['address']),
+			"remote": get_addr_ipv(remote['address'])
+		},
+		"trw": {
+			"h_local": local['trw.snd_wnd'] > 0 or local['trw.rcv_wnd'] > 0,
+			"h_remote": remote['trw.snd_wnd'] > 0 or remote['trw.rcv_wnd'] > 0,
+			"l_local": (local['trw.snd_wnd'] > START_WIN_SIZE and
+				local['trw.rcv_wnd'] > START_WIN_SIZE),
+			"l_remove": (remote['trw.snd_wnd'] > START_WIN_SIZE and
+				remote['trw.rcv_wnd'] > START_WIN_SIZE),
+			"wd_up": local['trw.snd_wnd'] - remote['trw.rcv_wnd'],
+			"wd_down": local['trw.rcv_wnd'] - remote['trw.snd_wnd']
+		}
+	}
+
+ipv_local = get_addr_ipv(local['address'])
+ipv_remote = get_addr_ipv(remote['address'])
+
+dirty = False
+invalid = False
+
+print("---")
+
+def p_dirty (out):
+	global dirty
+	dirty = True
+	return print(out)
+def p_invalid (out):
+	global invalid
+	invalid = True
+	return print(out)
+
+if local['address'] != remote['address']:
+	p_dirty("NAT: the address seen by the server is different from the local one")
+	if ipv_local == ipv_remote and ipv_remote == 6:
+		p_dirty("NAT66: IPv6 to IPv6 NAT detected!")
+if ipv_local != ipv_remote:
+	p_dirty("IPV_TRANS: IP version translation detected, possibly 464XLAT")
+if local['port'] != remote['port']:
+	p_dirty("MAPPED_PORT: the port has been remapped! You're most likely behind CGNAT")
+
+if local['trw.snd_wnd'] <= 0 or local['trw.rcv_wnd'] <= 0:
+	p_invalid("NO_LOCAL_TRW: the client had no access to TCP_REPAIR_WINDOW")
+elif remote['trw.snd_wnd'] <= 0 or remote['trw.rcv_wnd'] <= 0:
+	p_invalid("NO_REMOTE_TRW: the server had no access to TCP_REPAIR_WINDOW")
+else:
+	if False: # let's not talk about window scaling for now ...
+		if (local['trw.snd_wnd'] <= START_WIN_SIZE or
+				local['trw.rcv_wnd'] <= START_WIN_SIZE):
+			p_dirty(
+				"NO_LOCAL_WIN_SCALING: the client did not ramp up the window size above {0}"
+				.format(START_WIN_SIZE))
+		if (remote['trw.snd_wnd'] <= START_WIN_SIZE or
+				remote['trw.rcv_wnd'] <= START_WIN_SIZE):
+			p_dirty(
+				"NO_REMOTE_WIN_SCALING: the server did not ramp up the window size above {0}"
+			.format(START_WIN_SIZE))
+
+if not invalid:
+	# ELI5: server's send window is the client's receive window
+	# ELI5: client's send window is the server's receive window
+	wdelta_up = remote['trw.rcv_wnd'] - local['trw.snd_wnd']
+	wdelta_down = remote['trw.snd_wnd'] - local['trw.rcv_wnd']
+
+	# don't worry! the divisors have been checked beforehand.
+	wdelta_up_percent = abs(float(wdelta_up) / float(max(local['trw.snd_wnd'], remote['trw.rcv_wnd'])))
+	wdelta_down_percent = abs(float(wdelta_down) / float(max(local['trw.rcv_wnd'], remote['trw.snd_wnd'])))
+
+	if wdelta_up != 0:
+		p_dirty("WIN_SIZE_MISMATCH_UP: 'the uplink window size does not add up (d: {})'".format(wdelta_up))
+	if wdelta_up_percent >= 0.1:
+		p_dirty("WIN_SIZE_CAPPING_UP: 'substantial discrepancy in uplink window size! ({})'".format(wdelta_up_percent))
+	if wdelta_down != 0:
+		p_dirty("WIN_SIZE_MISMATCH_DOWN: 'the downlink window size does not add up (d: {})'".format(wdelta_down))
+	if wdelta_down_percent >= 0.1:
+		p_dirty("WIN_SIZE_CAPPING_DOWN: 'substantial discrepancy in downlink window size! ({})'".format(wdelta_down_percent))
+
+if invalid:
+	print("INVALID: the result is invalid due to some data being unavailable")
+
+if dirty or invalid:
+	exit(3)
+
+print("CLEAN: no tempering detected. Good for you!")
+exit(0)

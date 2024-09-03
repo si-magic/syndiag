@@ -6,8 +6,7 @@ setup () {
 }
 
 run () {
-	echo "yq should be able to parse syndiag's stdout."
-	"$SYNDIAG_EXEC" "$SYNDIAG_HOST" "$SYNDIAG_PORT" | yq '.' -
+	"$SYNDIAG_EXEC" "$SYNDIAG_HOST" "$SYNDIAG_PORT" | read-syndiag
 
 	gracefully_stop_daemon
 }

@@ -1,0 +1,28 @@
+#!/bin/sh
+# leaving yq as an optional dependency
+which yq > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+	PRETTY_OUTPUT_FILTER="yq"
+else
+	PRETTY_OUTPUT_FILTER="cat"
+fi
+
+set -e
+# prefer the one in PWD
+if [ -e "./syndiag" ] && [ -e "./read-syndiag" ]; then
+	EXEC_SYNDIAG=./syndiag
+	EXEC_READ_SYNDIAG=./read-syndiag
+else
+	EXEC_SYNDIAG=syndiag
+	EXEC_READ_SYNDIAG=read-syndiag
+fi
+
+output="$("$EXEC_SYNDIAG" $@)"
+ec=$?
+echo "$output"
+
+if [ $ec -eq 0 ]; then
+	if echo "$output" | grep '^---' > /dev/null; then
+		echo "$output" | "$EXEC_READ_SYNDIAG" | "$PRETTY_OUTPUT_FILTER"
+	fi
+fi

@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
 
 project(syndiag VERSION 0.0.0)
 
 include(CheckIncludeFile)
 include(CheckSymbolExists)
+include(GNUInstallDirs)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
@@ -29,6 +30,14 @@ configure_file(
 configure_file(
 	src/config.h.in
 	${CMAKE_BINARY_DIR}/config.h)
+configure_file(
+	src/syndiag-run
+	${CMAKE_BINARY_DIR}/syndiag-run
+	COPYONLY)
+configure_file(
+	src/read-syndiag
+	${CMAKE_BINARY_DIR}/read-syndiag
+	COPYONLY)
 
 add_compile_options(
 	-Wall
@@ -59,3 +68,17 @@ install(
 install(
 	FILES ${CMAKE_BINARY_DIR}/openrc/syndiagd
 	DESTINATION /etc/init.d)
+install(
+	FILES ${CMAKE_BINARY_DIR}/syndiag-run ${CMAKE_BINARY_DIR}/read-syndiag
+	DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+	PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)
+
+# optional setcap on executables for convenience
+install(
+	CODE "execute_process(
+		COMMAND setcap cap_net_admin=ep ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/syndiag
+		COMMAND setcap cap_net_admin=ep ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/syndiagd
+		COMMAND true
+		COMMAND_ERROR_IS_FATAL LAST
+)")
