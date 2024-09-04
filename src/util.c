@@ -1,5 +1,6 @@
 #include "util.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -249,4 +250,70 @@ unsigned int read_urand (void) {
 	close(fd);
 
 	return ret;
+}
+
+struct addrinfo *clone_addrinfo (
+		const struct addrinfo *ai_src,
+		const size_t max)
+{
+	const struct addrinfo *c;
+	struct addrinfo *ret;
+	size_t i, cnt, canon_size;
+
+	// Count the elements in the list
+	for (cnt = 0, c = ai_src; c != NULL && cnt < max; c = c->ai_next, cnt += 1);
+
+	// Allocate an array
+	if (cnt == 0) {
+		return NULL;
+	}
+	ret = calloc(cnt, sizeof(struct addrinfo));
+	if (ret == NULL) {
+		return NULL;
+	}
+
+	for (i = 0, c = ai_src; i < cnt; i += 1, c = c->ai_next) {
+		ret[i] = *c;
+		ret[i].ai_next = ret + 1;
+
+		if (c->ai_canonname != NULL) {
+			canon_size = strlen(c->ai_canonname) + 1;
+			ret[i].ai_canonname = malloc(canon_size);
+			if (ret[i].ai_canonname == NULL) {
+				goto ERR;
+			}
+			memcpy(ret[i].ai_canonname, c->ai_canonname, canon_size);
+		}
+
+		if (c->ai_addrlen > 0) {
+			ret[i].ai_addr = malloc(c->ai_addrlen);
+			if (ret[i].ai_addr == NULL) {
+				goto ERR;
+			}
+			memcpy(ret[i].ai_addr, c->ai_addr, c->ai_addrlen);
+		}
+	}
+	ret[i - 1].ai_next = NULL;
+
+	return ret;
+ERR:
+	free_cloned_addrinfo(ret);
+	return NULL;
+}
+
+void free_cloned_addrinfo (struct addrinfo *ai) {
+	if (ai == NULL) {
+		return;
+	}
+
+	for (size_t i = 0; ; i += 1) {
+		free(ai[i].ai_addr);
+		free(ai[i].ai_canonname);
+
+		if (ai[i].ai_next == NULL) {
+			break;
+		}
+	}
+
+	free(ai);
 }

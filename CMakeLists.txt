@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-project(syndiag VERSION 0.0.0)
+project(syndiag VERSION 0.0.0 LANGUAGES C)
 
 include(CheckIncludeFile)
 include(CheckSymbolExists)
@@ -8,6 +8,13 @@ include(GNUInstallDirs)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
+
+add_compile_options(
+	-Wall
+	-Wextra
+	-Wno-unused-parameter
+	-Werror=implicit-function-declaration
+	-D_GNU_SOURCE)
 
 # check Linux-specific features
 CHECK_SYMBOL_EXISTS(SOL_TCP "netinet/tcp.h" HAVE_SOL_TCP)
@@ -38,13 +45,6 @@ configure_file(
 	src/read-syndiag
 	${CMAKE_BINARY_DIR}/read-syndiag
 	COPYONLY)
-
-add_compile_options(
-	-Wall
-	-Wextra
-	-Wno-unused-parameter
-	-Werror=implicit-function-declaration)
-add_compile_definitions(_DEFAULT_SOURCE)
 
 # Stupid CMake won't let me have a lib named "syndiag" and an exec named
 # "syndiag" at the same time

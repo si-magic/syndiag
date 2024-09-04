@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <netdb.h>
 
 #define CHK_CLOSE(x) if ((x) >= 0) { close((x)); }
 // #ifndef MIN
@@ -41,3 +42,7 @@ char *inet_ep_ntop (const struct sockaddr *in_addr, void *out, const size_t size
 int print_version (FILE *out);
 bool setnonblock (const int fd, const bool onoff);
 unsigned int read_urand (void);
+struct addrinfo *clone_addrinfo (
+	const struct addrinfo *ai_src,
+	const size_t max);
+void free_cloned_addrinfo (struct addrinfo *ai);

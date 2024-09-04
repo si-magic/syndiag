@@ -127,6 +127,7 @@ static void do_param_sanity_check (void) {
 
 static struct addrinfo *resolve_host (void) {
 	struct addrinfo *ret = NULL;
+	struct addrinfo *result = NULL;
 	struct addrinfo hints = { 0, };
 	int s;
 
@@ -145,8 +146,12 @@ static struct addrinfo *resolve_host (void) {
 	hints.ai_flags |= AI_IDN;
 #endif
 
-	s = getaddrinfo(param.target.host, param.target.service, &hints, &ret);
-	if (s != 0) {
+	s = getaddrinfo(param.target.host, param.target.service, &hints, &result);
+	if (s == 0) {
+		ret = clone_addrinfo(result, SIZE_MAX);
+		freeaddrinfo(result);
+	}
+	else {
 		fprintf(stderr, "%s: %s\n", ARGV0, gai_strerror(s));
 	}
 
@@ -289,7 +294,7 @@ static int mk_main_socket (void) {
 	report_connected_host();
 
 END:
-	freeaddrinfo(ai);
+	free_cloned_addrinfo(ai);
 	return ret;
 }
 

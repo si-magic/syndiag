@@ -12,7 +12,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <unistd.h>
-#include <wait.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
