@@ -46,3 +46,7 @@ struct addrinfo *clone_addrinfo (
 	const struct addrinfo *ai_src,
 	const size_t max);
 void free_cloned_addrinfo (struct addrinfo *ai);
+void ts_sub (
+	const struct timespec *a,
+	const struct timespec *b,
+	struct timespec *out);

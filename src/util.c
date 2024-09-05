@@ -317,3 +317,18 @@ void free_cloned_addrinfo (struct addrinfo *ai) {
 
 	free(ai);
 }
+
+void ts_sub (
+		const struct timespec *a,
+		const struct timespec *b,
+		struct timespec *out)
+{
+	if (a->tv_nsec < b->tv_nsec) {
+		out->tv_sec = a->tv_sec - 1 - b->tv_sec;
+		out->tv_nsec = 1000000000 + a->tv_nsec - b->tv_nsec;
+	}
+	else {
+		out->tv_sec = a->tv_sec - b->tv_sec;
+		out->tv_nsec = a->tv_nsec - b->tv_nsec;
+	}
+}

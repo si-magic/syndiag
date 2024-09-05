@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <getopt.h>
 #include <errno.h>
+#include <time.h>
 #include "util.h"
 #include "config.h"
 
@@ -30,6 +31,7 @@ static struct {
 		struct sockaddr_in v4;
 		struct sockaddr_in6 v6;
 	} local_addr;
+	struct timespec ts[2];
 	int fd;
 } client;
 
@@ -158,6 +160,27 @@ static struct addrinfo *resolve_host (void) {
 	return ret;
 }
 
+static void race_afs (const struct pollfd *src, const unsigned int timeout) {
+	struct pollfd pfd[2];
+	int fr;
+
+	memcpy(pfd, src, 2 * sizeof(struct pollfd));
+
+	while (pfd[0].fd >= 0 || pfd[1].fd >= 0) {
+		pfd[0].revents = pfd[1].revents = 0;
+		fr = poll(pfd, 2, timeout);
+		if (fr <= 0) {
+			break;
+		}
+
+		for (size_t i = 0; i < 2; i += 1) {
+			if (pfd[i].revents != 0) {
+				pfd[i].fd = -1;
+			}
+		}
+	}
+}
+
 static int do_eyeball (struct addrinfo *ai) {
 	struct pollfd pfd[2] = { 0, };
 	struct addrinfo *cand[2];
@@ -212,15 +235,7 @@ static int do_eyeball (struct addrinfo *ai) {
 			}
 		}
 
-		// take 5 so that both connectivities can have a fair race
-		if (true) {
-			usleep(5000);
-		}
-		else {
-			// jiffy for stress testing
-			const unsigned int rnd = (int)read_urand() % 2500;
-			usleep((useconds_t)(5000 + rnd));
-		}
+		race_afs(pfd, 100);
 
 		pfd[0].revents = pfd[1].revents = 0;
 		fr = poll(pfd, 2, 10000);
@@ -428,10 +443,14 @@ static int print_remote_diag (void) {
 	char rcv_buf[4096];
 	ssize_t iofr;
 
+	// memset(client.ts, 0, sizeof(client.ts));
+
 	// cue the server
 	shutdown(client.fd, SHUT_WR);
 
+	clock_gettime(CLOCK_MONOTONIC, client.ts + 0);
 	iofr = read(client.fd, rcv_buf, sizeof(rcv_buf) - 1);
+	clock_gettime(CLOCK_MONOTONIC, client.ts + 1);
 	if (iofr < 0) {
 		goto END;
 	}
@@ -453,6 +472,17 @@ static int print_remote_diag (void) {
 
 END:
 	return ret;
+}
+
+static void print_delay (void) {
+	struct timespec ts_elapsed;
+
+	ts_sub(client.ts + 1, client.ts + 0, &ts_elapsed);
+	printf(
+		"  dt: %ld.%03ld\n"
+		,
+		(long)ts_elapsed.tv_sec,
+		ts_elapsed.tv_nsec / 1000000);
 }
 
 int main (const int argc, const char **argv) {
@@ -498,6 +528,8 @@ int main (const int argc, const char **argv) {
 	if (ec != 0) {
 		perror(ARGV0);
 	}
+
+	print_delay();
 
 END:
 	deinit_global();
