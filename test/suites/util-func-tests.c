@@ -5,10 +5,11 @@
 #include "util.h"
 #include <string.h>
 #include <assert.h>
+#include <sys/mman.h>
 
 _Static_assert(INET_EP_ADDRSTRLEN >= INET6_ADDRSTRLEN);
 
-int main (void) {
+static void test_inet (void) {
 	static char *ntop_ret;
 	static char buf[INET_EP_ADDRSTRLEN];
 	static union {
@@ -54,6 +55,59 @@ int main (void) {
 		buf,
 		sizeof(END_OF_WORLD_STR) - 1);
 	assert(ntop_ret == NULL);
+}
+
+static void test_ismemzero (void) {
+#define M_UNALIGNED_SIZE (4095)
+#define M_ALIGNED_SIZE (4096)
+	size_t i, j;
+	// assume that the linker will aligned this for us
+	static char m_aligned[M_ALIGNED_SIZE];
+	// well, for this one, we'll have to do it ourselves
+	char *m_unaligned = mmap(
+		NULL,
+		M_UNALIGNED_SIZE + 1,
+		PROT_WRITE,
+		MAP_ANONYMOUS | MAP_PRIVATE,
+		-1,
+		0);
+
+	assert(m_unaligned != MAP_FAILED);
+	m_unaligned += 1;
+	assert((uintptr_t)m_unaligned % sizeof(uintptr_t) != 0);
+
+	memset(m_aligned, 0, M_ALIGNED_SIZE);
+	memset(m_unaligned, 0, M_UNALIGNED_SIZE);
+
+	for (i = 0; i < M_ALIGNED_SIZE; i += 1) {
+		for (j = i; j < M_ALIGNED_SIZE; j += 1) {
+			assert(ismemzero(m_aligned + j, M_ALIGNED_SIZE - j));
+		}
+	}
+	for (i = 0; i < M_UNALIGNED_SIZE; i += 1) {
+		for (j = i; j < M_UNALIGNED_SIZE; j += 1) {
+			assert(ismemzero(m_unaligned + j, M_UNALIGNED_SIZE - j));
+		}
+	}
+
+	memset(m_aligned, 0, M_ALIGNED_SIZE);
+	memset(m_unaligned, 0, M_UNALIGNED_SIZE);
+	m_aligned[M_ALIGNED_SIZE - 1] = 1;
+	m_unaligned[M_UNALIGNED_SIZE - 1] = 1;
+
+	for (i = 0; i < M_ALIGNED_SIZE; i += 1) {
+		assert(!ismemzero(m_aligned + i, M_ALIGNED_SIZE - i));
+	}
+	for (i = 0; i < M_UNALIGNED_SIZE; i += 1) {
+		assert(!ismemzero(m_unaligned + i, M_UNALIGNED_SIZE - i));
+	}
+
+	munmap(m_unaligned, M_UNALIGNED_SIZE);
+}
+
+int main (void) {
+	test_inet();
+	test_ismemzero();
 
 	return 0;
 }

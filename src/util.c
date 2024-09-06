@@ -332,3 +332,37 @@ void ts_sub (
 		out->tv_nsec = a->tv_nsec - b->tv_nsec;
 	}
 }
+
+static bool ismemzero_unaligned (const void *in_buf, const size_t len) {
+	size_t i;
+	const uint8_t *buf = in_buf;
+
+	for (i = 0; i < len; i += 1) {
+		if (buf[i] != 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool ismemzero_aligned (const void *in_buf, const size_t len) {
+	size_t i;
+	const uintptr_t *buf = in_buf;
+	const size_t cnt = len / sizeof(uintptr_t);
+
+	for (i = 0; i < cnt; i += 1) {
+		if (buf[i] != 0) {
+			return false;
+		}
+	}
+
+	return ismemzero_unaligned(buf + i, len - cnt * sizeof(uintptr_t));
+}
+
+bool ismemzero (const void *buf, const size_t len) {
+	// unaligned read on x86 has a terrible performance impact. unaligned read
+	// is simply not supported on some arch(arm), resulting in crash.
+	return ((uintptr_t)buf % sizeof(uintptr_t)) == 0 ?
+		ismemzero_aligned(buf, len) :
+		ismemzero_unaligned(buf, len);
+}

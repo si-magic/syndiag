@@ -50,3 +50,5 @@ void ts_sub (
 	const struct timespec *a,
 	const struct timespec *b,
 	struct timespec *out);
+#define ISMEMZERO_ALIGNED(x) ((uintptr_t)(x) % sizeof(uintptr_t) == 0)
+bool ismemzero (const void *buf, const size_t len);
