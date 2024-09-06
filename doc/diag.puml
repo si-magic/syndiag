@@ -1,0 +1,19 @@
+@startuml
+
+skinparam defaulttextalignment center
+
+syndiagd (10)<- syndiag: SYN
+syndiagd ->(10) syndiag: SYN, ACK
+syndiagd (10)<- syndiag: ACK
+note over syndiagd, syndiag: 1
+note left syndiagd: 2
+syndiagd ->(10) syndiag: PSH, URG
+note right syndiag: 3, 4, 5
+syndiagd (10)<- syndiag: FIN
+note left syndiagd: 6, 7
+syndiagd ->(10) syndiag: PSH
+note left syndiagd: 8
+syndiagd ->(10) syndiag: FIN
+note over syndiagd, syndiag: 9
+
+@enduml
