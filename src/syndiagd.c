@@ -165,7 +165,7 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	assert(ISMEMZERO_ALIGNED(io_buf));
 
 	// for consume_incoming_zeros()
-	_Static_assert(sizeof(io_buf) >= SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET) + 1);
+	static_assert(sizeof(io_buf) >= SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET) + 1);
 
 	// the child wants to die when the connection times out
 	signal(SIGALRM, SIG_DFL);
@@ -235,12 +235,12 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	}
 
 	// for printf()
-	_Static_assert(sizeof(uint32_t) == sizeof(trw.snd_wnd));
-	_Static_assert(sizeof(uint32_t) == sizeof(trw.rcv_wnd));
-	_Static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_snd_mss));
-	_Static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_rcv_mss));
-	_Static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_advmss));
-	_Static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_rcv_space));
+	static_assert(sizeof(uint32_t) == sizeof(trw.snd_wnd));
+	static_assert(sizeof(uint32_t) == sizeof(trw.rcv_wnd));
+	static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_snd_mss));
+	static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_rcv_mss));
+	static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_advmss));
+	static_assert(sizeof(uint32_t) == sizeof(ti.tcpi_rcv_space));
 
 	if (our_inet_ntop(in_addr, addr.addr_str, sizeof(addr.addr_str)) == NULL) {
 		// silently ignore this error
@@ -248,7 +248,7 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	}
 
 	// bit of static memory safety checks
-	_Static_assert(sizeof(
+	static_assert(sizeof(
 		"SYNDIAG:           'v255.255.255.255 REV 0'\r\n"
 		"host:              '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
 		"address:           '0000:0000:0000:0000:0000:0000:0000:0000'\r\n"
@@ -558,7 +558,7 @@ static bool parse_argv (const int argc, const char **argv) {
 			param.pid_file = optarg;
 			break;
 		case 'H':
-			strncpy(param.hostname, optarg, sizeof(param.hostname));
+			strncpy(param.hostname, optarg, sizeof(param.hostname) - 1);
 			break;
 		case 'S':
 			if (sscanf(optarg, "%d", &param.sck_buf_size) != 1 ||
@@ -568,7 +568,7 @@ static bool parse_argv (const int argc, const char **argv) {
 			}
 			break;
 		case 'C':
-			strncpy(param.contact, optarg, sizeof(param.contact));
+			strncpy(param.contact, optarg, sizeof(param.contact) - 1);
 			break;
 		default: abort();
 		}

@@ -14,7 +14,7 @@
 #include <arpa/inet.h>
 #include "config.h"
 
-_Static_assert(INET_ADDRSTRLEN < INET6_ADDRSTRLEN);
+static_assert(INET_ADDRSTRLEN < INET6_ADDRSTRLEN);
 
 
 const char *our_inet_ntop (
@@ -166,7 +166,7 @@ char *inet_ep_ntop (
 		void *out,
 		const size_t size)
 {
-	_Static_assert(INT_MAX >= INET_EP_ADDRSTRLEN);
+	static_assert(INT_MAX >= INET_EP_ADDRSTRLEN);
 	char addr_str[INET6_ADDRSTRLEN];
 	int cnt = -1;
 

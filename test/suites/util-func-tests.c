@@ -7,7 +7,7 @@
 #include <assert.h>
 #include <sys/mman.h>
 
-_Static_assert(INET_EP_ADDRSTRLEN >= INET6_ADDRSTRLEN);
+static_assert(INET_EP_ADDRSTRLEN >= INET6_ADDRSTRLEN);
 
 static void test_inet (void) {
 	static char *ntop_ret;
@@ -27,9 +27,9 @@ static void test_inet (void) {
 	};
 	static const char END_OF_WORLD_STR[] =
 		"[ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%4294967295]:65535";
-	_Static_assert(sizeof(END_OF_WORLD_STR) <= sizeof(buf));
-	_Static_assert(sizeof(MAPPED_V4) == 16);
-	_Static_assert(sizeof(END_OF_WORLD) == 16);
+	static_assert(sizeof(END_OF_WORLD_STR) <= sizeof(buf));
+	static_assert(sizeof(MAPPED_V4) == 16);
+	static_assert(sizeof(END_OF_WORLD) == 16);
 
 	// no mapped v4 BS
 	memset(&addr, 0, sizeof(addr));
