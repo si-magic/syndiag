@@ -59,7 +59,7 @@ if local['address'] != remote['address']:
 	if ipv_local == ipv_remote and ipv_remote == 6:
 		p_dirty("NAT66: IPv6 to IPv6 NAT detected!")
 if ipv_local != ipv_remote:
-	p_dirty("IPV_TRANS: IP version translation detected, possibly 464XLAT")
+	p_dirty("IPV_TRANS: 'IP version translation detected(NAT64 or NAT46)'")
 if local['port'] != remote['port']:
 	p_dirty("MAPPED_PORT: the port has been remapped! You're most likely behind CGNAT")
 

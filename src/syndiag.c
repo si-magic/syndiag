@@ -364,8 +364,13 @@ static int print_local_diag (void) {
 	}
 
 	if (setsockopt_int(client.fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_ON)) {
-		get_tcp_repair_window(client.fd, &trw, NULL);
+		if (!get_tcp_repair_window(client.fd, &trw, NULL)) {
+			perror(ARGV0": get_tcp_repair_window()");
+		}
 		setsockopt_int(client.fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_OFF);
+	}
+	else {
+		perror(ARGV0": setsockopt_int(fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_ON)");
 	}
 
 	if (client.local_addr.sa.sa_family == AF_INET6) {
