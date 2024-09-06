@@ -101,7 +101,6 @@ static void deinit_global (void) {
 }
 
 static bool consume_incoming_zeros (
-		const size_t expected_zeros/* = SYNDIAG_TEST_MTU - get_tcp_mss(in_addr->sa_family) */,
 		const int fd,
 		char *buf,
 		size_t *read_zeros_len)
@@ -109,7 +108,7 @@ static bool consume_incoming_zeros (
 	ssize_t fr;
 	size_t z;
 
-	fr = read(fd, buf, expected_zeros + 1);
+	fr = read(fd, buf, SYNDIAG_TEST_MTU + 1);
 	if (fr < 0) {
 		return false;
 	}
@@ -117,7 +116,7 @@ static bool consume_incoming_zeros (
 		*read_zeros_len = 0;
 		return true;
 	}
-	else if ((size_t)fr > expected_zeros || !ismemzero(buf, (size_t)fr)) {
+	else if ((size_t)fr > SYNDIAG_TEST_MTU || !ismemzero(buf, (size_t)fr)) {
 		errno = EPROTO;
 		return false;
 	}
@@ -158,14 +157,13 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	ssize_t rwr;
 	size_t snd_len;
 	size_t read_zeros_len = 0;
-	const size_t mtu1280_padlen = SYNDIAG_TEST_MTU - get_tcp_mss(in_addr->sa_family);
 
 	// ensure that io_buf is aligned, otherwise there will be a huge
 	// performance impact in ismemzero();
 	assert(ISMEMZERO_ALIGNED(io_buf));
 
 	// for consume_incoming_zeros()
-	static_assert(sizeof(io_buf) >= SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET) + 1);
+	static_assert(sizeof(io_buf) >= SYNDIAG_TEST_MTU + 1);
 
 	// the child wants to die when the connection times out
 	signal(SIGALRM, SIG_DFL);
@@ -201,7 +199,7 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	cue_client(fd);
 
 	// wait for the client's cue
-	fr = consume_incoming_zeros(mtu1280_padlen, fd, io_buf, &read_zeros_len);
+	fr = consume_incoming_zeros(fd, io_buf, &read_zeros_len);
 	if (!fr) {
 		perror("consume_incoming_zeros()");
 		goto END;
@@ -229,10 +227,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 
 	sl = sizeof(mtu);
 	getsockopt_int(fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
-
-	if (read_zeros_len >= mtu1280_padlen && param.opts.mtu1280 && mtu > 1280) {
-		fprintf(stderr, "mtu 1280 enabled, but PMTUD did not occur!\n");
-	}
 
 	// for printf()
 	static_assert(sizeof(uint32_t) == sizeof(trw.snd_wnd));
@@ -298,8 +292,8 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	}
 
 	snd_len = (size_t)fr;
-	if (read_zeros_len > 0 && snd_len < mtu1280_padlen) {
-		const size_t extra_len = mtu1280_padlen - snd_len;
+	if (read_zeros_len > 0 && snd_len < SYNDIAG_TEST_MTU) {
+		const size_t extra_len = SYNDIAG_TEST_MTU - snd_len;
 
 		memset(io_buf + snd_len, 0, extra_len);
 		snd_len += extra_len;

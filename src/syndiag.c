@@ -364,10 +364,9 @@ static bool await_server_cues (void) {
 
 static void cue_server (void) {
 	if (param.opts.mtu1280) {
-		const char buf[SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET)] = { 0, };
-		const size_t len = SYNDIAG_TEST_MTU - get_tcp_mss(client.remote_addr.sa.sa_family);
+		const char buf[SYNDIAG_TEST_MTU] = { 0, };
 
-		write(client.fd, buf, len);
+		write(client.fd, buf, SYNDIAG_TEST_MTU);
 	}
 	shutdown(client.fd, SHUT_WR);
 }
