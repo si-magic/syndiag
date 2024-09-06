@@ -15,6 +15,7 @@
 // #define MAX(a,b) (((a)>(b))?(a):(b))
 // #endif
 
+#define get_tcp_mss(af) ((af) == AF_INET ? 40 :60)
 const char *our_inet_ntop (
 	const struct sockaddr *in_addr,
 	char *out,

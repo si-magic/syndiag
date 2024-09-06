@@ -41,12 +41,13 @@ static struct {
 		const char *service;
 	} target;
 	union {
-		size_t all;
+		uintptr_t all;
 		struct {
-			size_t help:1;
-			size_t version:1;
-			size_t v4:1;
-			size_t v6:1;
+			uintptr_t help:1;
+			uintptr_t version:1;
+			uintptr_t v4:1;
+			uintptr_t v6:1;
+			uintptr_t mtu1280:1;
 		};
 	} opts;
 } param;
@@ -54,12 +55,13 @@ static struct {
 static int print_help (FILE *out, const char *argv0) {
 #define HELP_STR \
 "TCP SYN diagnostics tool\n" \
-"Usage: %s [-hV46] [--] HOST [PORT]\n" \
+"Usage: %s [-hV46T] [--] HOST [PORT]\n" \
 "Options:\n" \
 "  -h  print this message and exit\n" \
 "  -V  print version and exit\n"\
 "  -4  use IPv4 connectivity only\n"\
-"  -6  use IPv6 connectivity only\n"
+"  -6  use IPv6 connectivity only\n"\
+"  -T  test mtu1280(requires server-side support)\n"
 
 	return fprintf(out, HELP_STR, argv0);
 #undef HELP_STR
@@ -82,7 +84,7 @@ static bool parse_argv (const int argc, const char **argv) {
 	int c;
 
 	do {
-		c = getopt(argc, (char*const*)argv, "hV46");
+		c = getopt(argc, (char*const*)argv, "hV46T");
 
 		switch (c) {
 		case -1: break;
@@ -91,6 +93,7 @@ static bool parse_argv (const int argc, const char **argv) {
 		case 'V': param.opts.version = true; break;
 		case '4': param.opts.v4 = true; break;
 		case '6': param.opts.v6 = true; break;
+		case 'T': param.opts.mtu1280 = true; break;
 		default: abort();
 		}
 	} while (c >= 0);
@@ -226,6 +229,13 @@ static int do_eyeball (struct addrinfo *ai) {
 				cand[i]->ai_family,
 				cand[i]->ai_socktype,
 				cand[i]->ai_protocol);
+			if (param.opts.mtu1280) {
+				setsockopt_int(
+					pfd[i].fd,
+					IPPROTO_IP,
+					IP_MTU_DISCOVER,
+					IP_PMTUDISC_DO);
+			}
 			setnonblock(pfd[i].fd, true);
 			fr = connect(pfd[i].fd, cand[i]->ai_addr, cand[i]->ai_addrlen);
 			if (fr < 0 && errno != EINPROGRESS) {
@@ -334,7 +344,7 @@ static void print_preemble (void) {
 	);
 }
 
-static void do_cues (void) {
+static bool await_server_cues (void) {
 	struct pollfd pfd = { 0, };
 	uint8_t cue;
 
@@ -342,25 +352,39 @@ static void do_cues (void) {
 	pfd.fd = client.fd;
 	pfd.events = POLLPRI;
 	poll(&pfd, 1, -1);
-	// flush the oob data so that it won't end up in the regular data
 	recv(client.fd, &cue, 1, MSG_OOB);
 
-	// this is no good - making sure the states are definitely updated.
-	usleep(50000);
+	if (true) {
+		// this is no good - making sure the states are definitely updated.
+		usleep(50000);
+	}
+
+	return true;
 }
 
-static int print_local_diag (void) {
-	int ret = -1;
+static void cue_server (void) {
+	if (param.opts.mtu1280) {
+		const char buf[SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET)] = { 0, };
+		const size_t len = SYNDIAG_TEST_MTU - get_tcp_mss(client.remote_addr.sa.sa_family);
+
+		write(client.fd, buf, len);
+	}
+	shutdown(client.fd, SHUT_WR);
+}
+
+static bool print_local_diag (void) {
 	struct tcp_info ti = { 0, };
 	struct tcp_repair_window trw = { 0, };
 	struct {
 		char addr_str[INET6_ADDRSTRLEN];
 		uint16_t port;
 	} addr = { 0, };
+	int mtu = 0;
+	socklen_t sl;
 
 	if (!get_tcp_info(client.fd, &ti, NULL)) {
 		perror(ARGV0": get_tcp_info()");
-		goto END;
+		return false;
 	}
 
 	if (setsockopt_int(client.fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_ON)) {
@@ -372,6 +396,9 @@ static int print_local_diag (void) {
 	else {
 		perror(ARGV0": setsockopt_int(fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_ON)");
 	}
+
+	sl = sizeof(mtu);
+	getsockopt_int(client.fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
 
 	if (client.local_addr.sa.sa_family == AF_INET6) {
 		addr.port = ntohs(client.local_addr.v6.sin6_port);
@@ -385,26 +412,28 @@ static int print_local_diag (void) {
 		"  local:\n"
 		"    address:           '%s'\n"
 		"    port:              %"PRIu16"\n"
+		"    mtu:               %d\n"
 		"    trw.snd_wnd:       %"PRIu32"\n"
 		"    trw.rcv_wnd:       %"PRIu32"\n"
 		"    ti.tcpi_snd_mss:   %"PRIu32"\n"
 		"    ti.tcpi_rcv_mss:   %"PRIu32"\n"
 		"    ti.tcpi_advmss:    %"PRIu32"\n"
 		"    ti.tcpi_rcv_space: %"PRIu32"\n"
+		"    mtu1280:           %s\n"
 		,
 		addr.addr_str,
 		addr.port,
+		mtu,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,
 		ti.tcpi_rcv_mss,
 		ti.tcpi_advmss,
-		ti.tcpi_rcv_space
+		ti.tcpi_rcv_space,
+		param.opts.mtu1280 ? "true" : "false"
 	);
-	ret = 0;
 
-END:
-	return ret;
+	return true;
 }
 
 static bool is_writable_str (const char *s) {
@@ -443,40 +472,31 @@ static void parse_remote_line (const char *line) {
 	printf("    %s\n", line);
 }
 
-static int print_remote_diag (void) {
-	int ret = 1;
+static bool print_remote_diag (void) {
 	char rcv_buf[4096];
 	ssize_t iofr;
-
-	// memset(client.ts, 0, sizeof(client.ts));
-
-	// cue the server
-	shutdown(client.fd, SHUT_WR);
 
 	clock_gettime(CLOCK_MONOTONIC, client.ts + 0);
 	iofr = read(client.fd, rcv_buf, sizeof(rcv_buf) - 1);
 	clock_gettime(CLOCK_MONOTONIC, client.ts + 1);
 	if (iofr < 0) {
-		goto END;
+		return false;
 	}
 	else if (iofr == 0) {
 		errno = ENODATA;
-		goto END;
+		return false;
 	}
 	rcv_buf[iofr] = 0;
 	if (strstr(rcv_buf, "SYNDIAG:") != rcv_buf || !is_writable_str(rcv_buf)) {
 		errno = EPROTO;
-		goto END;
+		return false;
 	}
 	shutdown(client.fd, SHUT_RD);
 
 	printf("  remote:\n");
 	foreach_delim(rcv_buf, "\r\n", parse_remote_line);
 
-	ret = 0;
-
-END:
-	return ret;
+	return true;
 }
 
 static void print_delay (void) {
@@ -491,7 +511,7 @@ static void print_delay (void) {
 }
 
 int main (const int argc, const char **argv) {
-	int ec = 1;
+	bool ret = true;
 
 	// override env locale
 	setlocale(LC_ALL, "C");
@@ -523,14 +543,22 @@ int main (const int argc, const char **argv) {
 	}
 
 	print_preemble();
-	do_cues();
-	ec = print_local_diag();
-	if (ec != 0) {
+
+	if (!await_server_cues()) {
+		ret = false;
+		perror(ARGV0);
+		goto END;
+	}
+
+	if (!print_local_diag()) {
+		ret = false;
 		perror(ARGV0);
 	}
 
-	ec = print_remote_diag();
-	if (ec != 0) {
+	cue_server();
+
+	if (!print_remote_diag()) {
+		ret = false;
 		perror(ARGV0);
 	}
 
@@ -538,5 +566,5 @@ int main (const int argc, const char **argv) {
 
 END:
 	deinit_global();
-	return ec;
+	return ret ? 0 : 1;
 }

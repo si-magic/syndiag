@@ -35,6 +35,7 @@ static struct {
 	size_t max_con;
 	const char *pid_file;
 	char hostname[256];
+	char contact[256];
 	unsigned int timeout;
 	int sck_buf_size;
 	union {
@@ -48,6 +49,7 @@ static struct {
 			size_t help:1;
 			size_t version:1;
 			size_t daemon:1;
+			size_t mtu1280:1;
 		};
 	} opts;
 } param;
@@ -55,8 +57,8 @@ static struct {
 static int print_help (FILE *out, const char *argv0) {
 #define HELP_STR \
 "TCP SYN diagnostics daemon\n" \
-"Usage: %s [-hVD] [-l BIND_ADDR] [-p PORT] [-m MAX_CONN] [-P PID_FILE]\n" \
-"          [-H hostname] [-S SO_SNDBUF]\n" \
+"Usage: %s [-hVDT] [-l BIND_ADDR] [-p PORT] [-m MAX_CONN] [-P PID_FILE]\n" \
+"          [-H hostname] [-S SO_SNDBUF] [-C CONTACT]\n" \
 "Options:\n" \
 "  -h            print this message and exit\n" \
 "  -V            print version and exit\n" \
@@ -67,7 +69,9 @@ static int print_help (FILE *out, const char *argv0) {
 "  -P PID_FILE   maintain a PID file\n" \
 "  -H HOSTNAME   specify hostname (default: %s)\n"\
 "  -S SO_SNDBUF  specify socket send buffer size\n"\
-"                (you probably want to set this on top of sysctl)\n"
+"                (you probably want to set this on top of sysctl)\n"\
+"  -T            set mtu1280 flag in response body\n"\
+"  -C CONTACT    set contact info in response body\n"
 
 	return fprintf(
 		out,
@@ -96,6 +100,47 @@ static void deinit_global (void) {
 	// nothing to do
 }
 
+static bool consume_incoming_zeros (
+		const size_t expected_zeros/* = SYNDIAG_TEST_MTU - get_tcp_mss(in_addr->sa_family) */,
+		const int fd,
+		char *buf,
+		size_t *read_zeros_len)
+{
+	ssize_t fr;
+	size_t z;
+
+	fr = read(fd, buf, expected_zeros + 1);
+	if (fr < 0) {
+		return false;
+	}
+	else if (fr == 0) {
+		*read_zeros_len = 0;
+		return true;
+	}
+	else if ((size_t)fr > expected_zeros || !ismemzero(buf, (size_t)fr)) {
+		errno = EPROTO;
+		return false;
+	}
+	z = (size_t)fr;
+
+	fr = read(fd, buf, 1);
+	if (fr > 0) {
+		errno = EPROTO;
+		return false;
+	}
+	else if (fr < 0) {
+		return false;
+	}
+
+	*read_zeros_len = z;
+	return true;
+}
+
+static bool cue_client (const int fd) {
+	const uint8_t cue = 0;
+	return send(fd, &cue, 1, MSG_OOB) == 1;
+}
+
 static int child_main (const int fd, const struct sockaddr *in_addr) {
 	// tcp_info: mss, window
 	// tcp_repair_window: window
@@ -106,10 +151,21 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	int ec = 1;
 	struct tcp_info ti = { 0, };
 	struct tcp_repair_window trw = { 0, };
-	char snd_buf[4095];
-	uint8_t cue = 0;
+	int mtu = 0;
+	socklen_t sl;
+	char io_buf[4096];
 	int fr;
 	ssize_t rwr;
+	size_t snd_len;
+	size_t read_zeros_len = 0;
+	const size_t mtu1280_padlen = SYNDIAG_TEST_MTU - get_tcp_mss(in_addr->sa_family);
+
+	// ensure that io_buf is aligned, otherwise there will be a huge
+	// performance impact in ismemzero();
+	assert(ISMEMZERO_ALIGNED(io_buf));
+
+	// for consume_incoming_zeros()
+	_Static_assert(sizeof(io_buf) >= SYNDIAG_TEST_MTU - get_tcp_mss(AF_INET) + 1);
 
 	// the child wants to die when the connection times out
 	signal(SIGALRM, SIG_DFL);
@@ -142,10 +198,14 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	}
 
 	// cue the client
-	send(fd, &cue, 1, MSG_OOB);
+	cue_client(fd);
 
 	// wait for the client's cue
-	read(fd, &cue, sizeof(cue));
+	fr = consume_incoming_zeros(mtu1280_padlen, fd, io_buf, &read_zeros_len);
+	if (!fr) {
+		perror("consume_incoming_zeros()");
+		goto END;
+	}
 
 	// now, hopefully, the TRW state is up to date!
 
@@ -167,6 +227,13 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		goto END;
 	}
 
+	sl = sizeof(mtu);
+	getsockopt_int(fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
+
+	if (read_zeros_len >= mtu1280_padlen && param.opts.mtu1280 && mtu > 1280) {
+		fprintf(stderr, "mtu 1280 enabled, but PMTUD did not occur!\n");
+	}
+
 	// for printf()
 	_Static_assert(sizeof(uint32_t) == sizeof(trw.snd_wnd));
 	_Static_assert(sizeof(uint32_t) == sizeof(trw.rcv_wnd));
@@ -186,45 +253,62 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"host:              '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
 		"address:           '0000:0000:0000:0000:0000:0000:0000:0000'\r\n"
 		"port:              65535\r\n"
+		"mtu:               -2147483648\r\n"
 		"trw.snd_wnd:       4294967295\r\n"
 		"trw.rcv_wnd:       4294967295\r\n"
 		"ti.tcpi_snd_mss:   4294967295\r\n"
 		"ti.tcpi_rcv_mss:   4294967295\r\n"
 		"ti.tcpi_advmss:    4294967295\r\n"
 		"ti.tcpi_rcv_space: 4294967295\r\n"
-	) - 1 <= sizeof(snd_buf));
-	fr = snprintf(snd_buf, sizeof(snd_buf),
+		"mtu1280:           false\r\n"
+		"contact:           '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
+	) <= sizeof(io_buf));
+	fr = snprintf(io_buf, sizeof(io_buf),
 		"SYNDIAG:           'v%s REV 0'\r\n"
 		"host:              '%s'\r\n"
 		"address:           '%s'\r\n"
 		"port:              %"PRIu16"\r\n"
+		"mtu:               %d\r\n"
 		"trw.snd_wnd:       %"PRIu32"\r\n"
 		"trw.rcv_wnd:       %"PRIu32"\r\n"
 		"ti.tcpi_snd_mss:   %"PRIu32"\r\n"
 		"ti.tcpi_rcv_mss:   %"PRIu32"\r\n"
 		"ti.tcpi_advmss:    %"PRIu32"\r\n"
 		"ti.tcpi_rcv_space: %"PRIu32"\r\n"
+		"mtu1280:           %s\r\n"
+		"contact:           '%s'\r\n"
 		,
 		SYNDIAG_VERSION,
 		param.hostname,
 		addr.addr_str,
 		addr.port,
+		mtu,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,
 		ti.tcpi_rcv_mss,
 		ti.tcpi_advmss,
-		ti.tcpi_rcv_space
+		ti.tcpi_rcv_space,
+		param.opts.mtu1280 ? "true" : "false",
+		param.contact
 	);
 	if (fr < 0) {
 		perror("snprintf()");
 		goto END;
 	}
 
+	snd_len = (size_t)fr;
+	if (read_zeros_len > 0 && snd_len < mtu1280_padlen) {
+		const size_t extra_len = mtu1280_padlen - snd_len;
+
+		memset(io_buf + snd_len, 0, extra_len);
+		snd_len += extra_len;
+	}
+
 	shutdown(fd, SHUT_RD);
-	rwr = write(fd, snd_buf, (size_t)fr);
+	rwr = write(fd, io_buf, snd_len);
 	shutdown(fd, SHUT_WR);
-	ec = rwr == fr ? 0 : 1;
+	ec = rwr == (ssize_t)snd_len ? 0 : 1;
 
 END:
 	close(fd);
@@ -433,7 +517,7 @@ static bool parse_argv (const int argc, const char **argv) {
 	uint16_t port = 0;
 
 	do {
-		c = getopt(argc, (char*const*)argv, "hVl:p:m:DP:H:S:");
+		c = getopt(argc, (char*const*)argv, "hVl:p:m:DP:H:S:TC:");
 
 		switch (c) {
 		case -1: break;
@@ -441,6 +525,7 @@ static bool parse_argv (const int argc, const char **argv) {
 		case 'h': param.opts.help = true; break;
 		case 'V': param.opts.version = true; break;
 		case 'D': param.opts.daemon = true; break;
+		case 'T': param.opts.mtu1280 = true; break;
 		case 'p':
 			if (sscanf(optarg, "%"SCNu16, &port) != 1 || port == 0) {
 				RETURN_ERROR_OPT("-p");
@@ -481,6 +566,9 @@ static bool parse_argv (const int argc, const char **argv) {
 			{
 				RETURN_ERROR_OPT("-S");
 			}
+			break;
+		case 'C':
+			strncpy(param.contact, optarg, sizeof(param.contact));
 			break;
 		default: abort();
 		}

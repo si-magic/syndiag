@@ -49,9 +49,13 @@ def p_dirty (out):
 	global dirty
 	dirty = True
 	return print(out)
+
 def p_invalid (out):
 	global invalid
 	invalid = True
+	return print(out)
+
+def p_ok (out):
 	return print(out)
 
 if local['address'] != remote['address']:
@@ -79,6 +83,15 @@ else:
 			p_dirty(
 				"NO_REMOTE_WIN_SCALING: the server did not ramp up the window size above {0}"
 			.format(START_WIN_SIZE))
+
+if bool(local['mtu1280']):
+	if bool(remote['mtu1280']):
+		if local['mtu'] == remote['mtu'] and remote['mtu'] <= 1280:
+			p_ok("MTU1280_OK: the mtu 1280 test passed")
+		else:
+			p_dirty("MTU1280_FAIL: the mtu 1280 test failed, please contact the server admin")
+	else:
+		p_invalid("MTU1280_INVALID: the mtu 1280 requested but the server was not set up for it")
 
 if not invalid:
 	# ELI5: server's send window is the client's receive window
