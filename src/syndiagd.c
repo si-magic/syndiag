@@ -70,7 +70,7 @@ static int print_help (FILE *out, const char *argv0) {
 "  -H HOSTNAME   specify hostname (default: %s)\n"\
 "  -S SO_SNDBUF  specify socket send buffer size\n"\
 "                (you probably want to set this on top of sysctl)\n"\
-"  -T            set mtu1280 flag in response body\n"\
+"  -T            enable mtu1280 mode\n"\
 "  -C CONTACT    set contact info in response body\n"
 
 	return fprintf(
@@ -457,6 +457,12 @@ static int mk_main_socket (void) {
 		goto END;
 	}
 
+	if (param.opts.mtu1280) {
+// Let the upstream router fragment the packets to see if the fragmented packets
+// can make it to the client. The client sets this to IP_PMTUDISC_DO to test if
+// ICMP is not blocked.
+		setsockopt_int(fd, IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DONT);
+	}
 	setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1);
 
 	if (bind(fd, &param.listen.sa, sizeof(param.listen)) < 0) {
