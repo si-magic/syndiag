@@ -295,6 +295,21 @@ TODO: as the application has no control over the kernel's algo, this attribute
 begs more thinking as to how it should be implemented
 -->
 
+### MTU1280_FAIL
+Condition: mtu 1280 check requested, the server in mtu 1280 mode, the PMTU for
+the connection larger than 1280 octets at the end of response data.
+
+The mtu 1280 check has been requested with `-T` option, but the PMTUD did not
+occur. It's most likely that the server is not set up correctly. Note that
+`MTU1280_OK` is not defined because syndiag run should fail printing "No data
+available"(`ENODATA`) to stderr.
+
+### MTU1280_INVALID
+Condition: mtu 1280 check requested, the server not in mtu 1280 mode
+
+The mtu 1280 check has been requested with `-T` option, but the server said it
+was not running in mtu 1280 mode.
+
 ## Notes
 ### API used
 | API | Field | Remarks |
