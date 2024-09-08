@@ -1,0 +1,26 @@
+@startuml
+
+title mtu1280 mode in IPv6
+
+skinparam defaulttextalignment center
+
+participant "syndiagd" as A
+control "mtu1280 router" as M
+participant "syndiag" as B
+
+M (10)<- B: PSH, len > 1280
+M ->(10) B: **ICMPv6 packet too big**
+note over B: PMTU adjusted
+M (10)<- B: PSH, len == 1280
+A (10)<- M: PSH, len == 1280
+M (10)<- B: PSH, len < 1280
+A (10)<- M: PSH, len < 1280
+
+note across: request finished
+
+A ->(10) M: PSH, len == 1280
+M ->(10) B: PSH, len == 1280
+A ->(10) M: PSH, len < 1280
+M ->(10) B: PSH, len < 1280
+
+@enduml
