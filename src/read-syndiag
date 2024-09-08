@@ -103,6 +103,15 @@ if not invalid:
 	if wdelta_down_percent >= 0.1:
 		p_dirty("WIN_SIZE_CAPPING_DOWN: 'substantial discrepancy in downlink window size! ({})'".format(wdelta_down_percent))
 
+if bool(local['mtu1280']):
+	if bool(remote['mtu1280']):
+		if root['mtu'] <= 1280:
+			if False: p_ok("MTU1280_OK: the mtu 1280 test passed")
+		else:
+			p_dirty("MTU1280_FAIL: the mtu 1280 test failed, please contact the server admin")
+	else:
+		p_invalid("MTU1280_INVALID: the mtu 1280 requested but the server was not set up for it")
+
 if invalid:
 	print("INVALID: the result is invalid due to some data being unavailable")
 

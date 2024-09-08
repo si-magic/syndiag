@@ -333,11 +333,11 @@ static void print_preemble (void) {
 	printf(
 		"---\n"
 		"syndiag report:\n"
-		"  rev:        0\n"
-		"  version:    '"SYNDIAG_VERSION"'\n"
+		"  rev:                 0\n"
+		"  version:             '"SYNDIAG_VERSION"'\n"
 		"  endpoint:\n"
-		"    remote:     '%s'\n"
-		"    local:      '%s'\n"
+		"    remote:            '%s'\n"
+		"    local:             '%s'\n"
 		,
 		ep_remote_str,
 		ep_local_str
@@ -378,8 +378,6 @@ static bool print_local_diag (void) {
 		char addr_str[INET6_ADDRSTRLEN];
 		uint16_t port;
 	} addr = { 0, };
-	int mtu = 0;
-	socklen_t sl;
 
 	if (!get_tcp_info(client.fd, &ti, NULL)) {
 		perror(ARGV0": get_tcp_info()");
@@ -396,9 +394,6 @@ static bool print_local_diag (void) {
 		perror(ARGV0": setsockopt_int(fd, SOL_TCP, TCP_REPAIR, TCP_REPAIR_ON)");
 	}
 
-	sl = sizeof(mtu);
-	getsockopt_int(client.fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
-
 	if (client.local_addr.sa.sa_family == AF_INET6) {
 		addr.port = ntohs(client.local_addr.v6.sin6_port);
 	}
@@ -411,7 +406,6 @@ static bool print_local_diag (void) {
 		"  local:\n"
 		"    address:           '%s'\n"
 		"    port:              %"PRIu16"\n"
-		"    mtu:               %d\n"
 		"    trw.snd_wnd:       %"PRIu32"\n"
 		"    trw.rcv_wnd:       %"PRIu32"\n"
 		"    ti.tcpi_snd_mss:   %"PRIu32"\n"
@@ -422,7 +416,6 @@ static bool print_local_diag (void) {
 		,
 		addr.addr_str,
 		addr.port,
-		mtu,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,
@@ -498,13 +491,21 @@ static bool print_remote_diag (void) {
 	return true;
 }
 
-static void print_delay (void) {
+static void print_footer (void) {
 	struct timespec ts_elapsed;
+	socklen_t sl;
+	int mtu = 0;
+
+	sl = sizeof(mtu);
+	getsockopt_int(client.fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
 
 	ts_sub(client.ts + 1, client.ts + 0, &ts_elapsed);
+
 	printf(
-		"  dt: %ld.%03ld\n"
+		"  mtu:                 %d\n"
+		"  dt:                  %ld.%03ld\n"
 		,
+		mtu,
 		(long)ts_elapsed.tv_sec,
 		ts_elapsed.tv_nsec / 1000000);
 }
@@ -561,7 +562,7 @@ int main (const int argc, const char **argv) {
 		perror(ARGV0);
 	}
 
-	print_delay();
+	print_footer();
 
 END:
 	deinit_global();

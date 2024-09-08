@@ -150,8 +150,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 	int ec = 1;
 	struct tcp_info ti = { 0, };
 	struct tcp_repair_window trw = { 0, };
-	int mtu = 0;
-	socklen_t sl;
 	char io_buf[4096];
 	int fr;
 	ssize_t rwr;
@@ -225,9 +223,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		goto END;
 	}
 
-	sl = sizeof(mtu);
-	getsockopt_int(fd, IPPROTO_IP, IP_MTU, &mtu, &sl);
-
 	// for printf()
 	static_assert(sizeof(uint32_t) == sizeof(trw.snd_wnd));
 	static_assert(sizeof(uint32_t) == sizeof(trw.rcv_wnd));
@@ -247,7 +242,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"host:              '012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012.012345678901234567890123456789012345678901234567890123456789012'\r\n"
 		"address:           '0000:0000:0000:0000:0000:0000:0000:0000'\r\n"
 		"port:              65535\r\n"
-		"mtu:               -2147483648\r\n"
 		"trw.snd_wnd:       4294967295\r\n"
 		"trw.rcv_wnd:       4294967295\r\n"
 		"ti.tcpi_snd_mss:   4294967295\r\n"
@@ -262,7 +256,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		"host:              '%s'\r\n"
 		"address:           '%s'\r\n"
 		"port:              %"PRIu16"\r\n"
-		"mtu:               %d\r\n"
 		"trw.snd_wnd:       %"PRIu32"\r\n"
 		"trw.rcv_wnd:       %"PRIu32"\r\n"
 		"ti.tcpi_snd_mss:   %"PRIu32"\r\n"
@@ -276,7 +269,6 @@ static int child_main (const int fd, const struct sockaddr *in_addr) {
 		param.hostname,
 		addr.addr_str,
 		addr.port,
-		mtu,
 		trw.snd_wnd,
 		trw.rcv_wnd,
 		ti.tcpi_snd_mss,
