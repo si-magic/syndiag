@@ -38,17 +38,17 @@ Run `syndiag-run -h` for usage.
 <!-- - [doc/results.md](doc/results.md) -->
 
 ## Glossary and RFCs
-TODO table
-
-- Window scaling
-- Uplink window size
-- Downlink window size
-- CGNAT
-- Full-cone NAT
-- Symmetric NAT
-- NAT
-- NAT64
-- NAT66
+| Term | Description |
+|-|-|
+| Window scaling | TCP Window Scale Option (WSopt). First described in RFC 1323. |
+| Uplink window size | The window size sent to the client by the server. i.e. upload window. |
+| Downlink window size | The window size sent to the server by the client. i.e. download window. |
+| NAT | Network address translation. More specifically, one-to-many NAT involving private address subnets in modern era. |
+| NAT64 | NAT from IPv6 addresses to IPv4 addresses. |
+| NAT66 | NAT from IPv4 addresses to IPv6 addresses. |
+| CGNAT | aka. Large Scale NAT(LSN), appears in RFC 6264. |
+| Full-cone NAT | aka. [one-to-one port mapping NAT](https://en.wikipedia.org/wiki/Network_address_translation#Methods_of_translation), first appeared in RFC 3489(STUN). |
+| Symmetric NAT | first appeared in RFC 3489(STUN), the type of NAT with which external port mapping is not possible without external services such as PCP(RFC 6887). |
 
 ## Sequence
 <img src="doc/image-5.png" style="width: 800px; vertical-align: top;">
@@ -148,7 +148,7 @@ more.
 ### Recommended server types for window tempering detection
 Since it's difficult to guess the characteristics of proprietary TCP optimizers,
 it could be a good idea to set up servers with different TCP window parameters.
-To run different set ups in the same host, multiple instances of syndiagd can be
+To run different set ups on the same host, multiple instances of syndiagd can be
 run in different network namespaces. Here are some other recommended server set
 ups.
 
@@ -160,13 +160,20 @@ size. The give away will be the server getting the uplink window more than
 65535, which is not possible without window scaling.
 
 #### Very small receive window size (< 65535)
-Same as [#No window scaling](#no_window_scaling).
+Same as [#No window scaling](#no-window-scaling).
 
 #### Massive receive window size (> 1048576)
 To see if the accelerator caps the uplink window to shape bandwidth and reduce
 memory footprint.
 
 ## Understanding Syndiag-run Output
+read-syndiag reads the YAML output from syndiag, interprets it, prints the
+highlights in MACRO-description style string scalar mappings(example below).
+
+```yaml
+CLEAN: 'no tempering detected. Good for you!'
+```
+
 Syndiag's main purpose is to detect window size tempering. It also reports some
 other information about the network. For full NAT condition check, refer to
 STUN(RFC 5389).
@@ -290,7 +297,20 @@ begs more thinking as to how it should be implemented
 
 ## Notes
 ### API used
-TODO: packet field and related APIs
+| API | Field | Remarks |
+|-|-|-|
+| IP_MTU | The new PMTU in ICMP fragmented needed or ICMPv6 packet too big | - |
+| IP_MTU_DISCOVER | DF flag in IPv4 header | Set in syndiag. Unset in syndiagd. See [#MTU 1280 Mode in IPv4](#mtu-1280-mode-in-ipv4). |
+| TCP_INFO | TCP MSS option | Doesn't seem to return reliable data. More work needed. |
+| TCP_REPAIR_WINDOW | TCP window | Returns scaled value. Linux does not provide an interface to `net.ipv4.tcp_window_scaling` via socket options. |
+
+`TCP_INFO` and `TCP_REPAIR_WINDOW` are extremely Linux-specific and poorly
+documented. The structures are oddly similar to the corresponding ones in the
+kernel code, so the binary compatibility could easily be broken by the kernel
+maintainers.
+
+- http://web.archive.org/web/20240215044904/https://linuxgazette.net/136/pfeiffer.html
+- http://web.archive.org/web/20240908180812/https://stackoverflow.com/questions/54070889/how-to-get-the-tcp-window-size-of-a-socket-in-linux
 
 ### When TCP Scaling is OFF in the client host
 TODO: interesting to see if TCP accelerator set the scaling option in the
@@ -306,4 +326,3 @@ seems more work for nothing.
 - http://web.archive.org/web/20240512232328/https://frehberg.com/wp-content/uploads/2019/09/TCP-Out-Of-Band.pdf
 - http://web.archive.org/web/20240527034749/https://www.excentis.com/blog/tcp-half-close-a-cool-feature-that-is-now-broken/
 - http://web.archive.org/web/20240215044904/https://linuxgazette.net/136/pfeiffer.html
-- https://stackoverflow.com/questions/54070889/how-to-get-the-tcp-window-size-of-a-socket-in-linux

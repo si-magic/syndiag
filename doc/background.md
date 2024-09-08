@@ -193,7 +193,7 @@ accelerator would alter the window size.
 
 - http://web.archive.org/web/20240628070158/https://www.highspeedsat.com/tcp-ip-over-satellite-acceleration.htm
 - http://web.archive.org/web/20240908010544/https://www.networkworld.com/article/862336/lan-wan-tcp-acceleration-and-spoofing-acknowledgements.html
-- https://networkengineering.stackexchange.com/questions/1440/tcp-acceleration-over-satellite-or-high-latency-networks
+- http://web.archive.org/web/20240221094225/https://networkengineering.stackexchange.com/questions/1440/tcp-acceleration-over-satellite-or-high-latency-networks
 <!-- - http://web.archive.org/web/20240415064454/http://www.cs.ucr.edu/~mart/preprints/allerton_paper.pdf -->
 
 In modern days, the network delay is still an issue. Modern applications like
