@@ -39,6 +39,7 @@
 #include "config.h"
 #include "util.h"
 
+#define ARGV0 "syndiagd"
 
 static struct {
 	struct {
@@ -594,6 +595,11 @@ static bool parse_argv (const int argc, const char **argv) {
 		else {
 			abort();
 		}
+	}
+
+	if (optind < argc) {
+		fprintf(stderr, ARGV0": too many arguments\n");
+		return false;
 	}
 
 	return true;
